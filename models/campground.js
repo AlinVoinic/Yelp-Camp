@@ -3,9 +3,20 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 const Review = require('./review');
 
+
+const ImageSchema = new Schema({
+    url: String,
+    filename: String
+})
+ImageSchema.virtual('thumbnail').get(function () {
+    return this.url.replace('/upload', '/upload/w_200');
+}) //will display all images to delete on 200x200 px
+ImageSchema.virtual('cardImage').get(function () {
+    return this.url.replace('/upload', '/upload/ar_4:3,c_crop');
+}) //will maintain aspect ratio for carousel images
 const CampgroundSchema = new Schema({
     title: String,
-    image: String,
+    images: [ImageSchema],
     price: Number,
     description: String,
     location: String,
@@ -27,9 +38,3 @@ CampgroundSchema.post('findOneAndDelete', async function (doc) {
 })
 module.exports = mongoose.model('Campground', CampgroundSchema); // in BD va aparea colectia 'campgrounds'
 
-// images: [
-    //     {
-    //         url: String,
-    //         filename: String
-    //     }
-    // ],

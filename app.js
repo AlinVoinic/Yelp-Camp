@@ -11,6 +11,7 @@
                                 care ne va intoarce un URL cu imaginea pe care il vom stoca in Campground document din DB.
 
     Pana vom lansa aplicatia, lucram in 'development' mode!
+    Cross site scripting (XSS): injectarea propriului script intr-o aplicatie pentru furt de date
 */
 if (process.env.NODE_ENV !== 'production') {
     require('dotenv').config(); //modul ce incarca variabilele de environment dintr-un fisier .env (ASCUNS!) in process.env
@@ -34,10 +35,14 @@ const reviewRoutes = require('./routes/reviews');
 const session = require('express-session');
 const flash = require('connect-flash');
 
+const mongoSanitize = require('express-mongo-sanitize'); //previne Mongo Injections!
+const helmet = require('helmet'); //security package with middleware for HTTP headers
+
 const passport = require('passport');
 const LocalStrategy = require('passport-local');
 //passport-local-mongoose este DOAR in User model!
 const User = require('./models/user')
+
 
 mongoose.connect('mongodb://127.0.0.1:27017/yelp-camp')
 const db = mongoose.connection;
@@ -47,11 +52,13 @@ db.once("open", () => {
 });
 
 const sessionConfig = {
+    name: 'ses', // changes connect.sid!
     secret: 'choosemoresecuresecretnext!',
     resave: false,  // deprecation warnings
     saveUninitialized: true, // deprecation
     cookie: {  // custom options for the cookie sent back 
-        httpOnly: true, // security purposes | true by default!
+        httpOnly: true, // security purposes, not available through JS!
+        //secure: true, // cookies can be configured ONLY over HTTPS!
         expires: Date.now() + 1000 * 60 * 60 * 24 * 7,  // pentru Internet Explorer! 
         maxAge: 1000 * 60 * 60 * 24 * 7   // new standard! 'expires' este redundant!
     }
@@ -65,8 +72,12 @@ app.use(express.static(path.join(__dirname, "public"))); //boilerplate.ejs @29
 app.use(express.urlencoded({ extended: true }))
 app.use(override('_method'))
 
-app.use(session(sessionConfig)); //ajuta si pentru passport!!!
+app.use(session(sessionConfig)); // ajuta si pentru passport!!!
 app.use(flash()); //Flash este dependent de session ptc stocheaza informatii in el
+
+app.use(mongoSanitize()); // user-ul nu mai poate folosi caractere speciale in query
+app.use(helmet({contentSecurityPolicy: false})); // https://helmetjs.github.io/
+//CSP este un layer de securitate care obliga aplicatia sa foloseasca continut DOAR din anumite surse externe
 
 app.use(passport.initialize());  // initializeaza passport
 app.use(passport.session()); //for persistent login sessions
@@ -75,6 +86,7 @@ passport.serializeUser(User.serializeUser()); //serialize (store) a User in the 
 passport.deserializeUser(User.deserializeUser()); //deserialize a User from the session
 
 app.use((req, res, next) => { //cu acest middleware, nu mai trebuie pasat nimic in templates (avem mereu acces la res.locals)
+    // console.log(req.query); //{}, accesand http://localhost:8080/?query
     res.locals.currentUser = req.user; // contine informatii deserializate din session despre user! (din passport)
     // Am fi putut accesa informatiile userului si din session, dar este mai la indemana asa!
     res.locals.success = req.flash('success');
